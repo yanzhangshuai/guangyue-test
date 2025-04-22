@@ -1,4 +1,4 @@
-version: "3.9"
+version: '3.9'
 
 services:
   app:
@@ -11,6 +11,6 @@ services:
         REGISTRY_URL: https://registry.npmmirror.com
     container_name: yzs_guangyue-test
     ports:
-      - "3416:80"
+      - '3416:80'
     restart: always
     network_mode: bridge

@@ -1,24 +1,20 @@
 <script lang="ts" setup>
-import type { TreeNode } from '@/service/tree/type'
-
-import { ref } from 'vue'
+import { useAsync } from '@/hooks/useAsync'
 import { useTreeService } from '@/service/tree'
+
+import CTree from './tree/index.vue'
 
 const treeService = useTreeService()
 
-const treeData = ref<TreeNode[]>([])
-
-treeService.getTreeData()
-  .then((res) => {
-    treeData.value = res
-  })
-  .catch((err) => {
-    console.error('Error fetching tree data:', err)
-  })
+const { isLoading, data, error } = useAsync(() => treeService.getTreeData(), { immediate: true })
 </script>
 
 <template>
-  <h1>{{ treeData.length }}</h1>
-</template>
+  <div class="h-screen flex-x-center">
+    <ASpin v-if="isLoading" />
 
-<style lang="less" scoped></style>
+    <AEmpty v-else-if="error" :description="`获取数据失败:${error}`" />
+
+    <CTree v-else-if="data" :nodes="data" />
+  </div>
+</template>

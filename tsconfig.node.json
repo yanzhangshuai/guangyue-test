@@ -2,6 +2,7 @@
   "compilerOptions": {
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "ES2017",
     "baseUrl": "./",
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -15,13 +16,8 @@
     "skipLibCheck": true
   },
   "include": [
-    "build/**/*.ts",
-    "build/**/*.d.ts",
-    "test/**/*.ts",
-    "test/**/*.d.ts",
     "src/**/*.ts",
     "src/**/*.d.ts",
-    "src/**/*.vue",
-    "src/service/demo"
+    "src/**/*.vue"
   ]
 }

@@ -1,5 +1,5 @@
-export interface TreeNode {
+export interface TreeNodeDto {
   id       : number
   name     : string
-  children?: TreeNode[]
+  children?: TreeNodeDto[]
 }

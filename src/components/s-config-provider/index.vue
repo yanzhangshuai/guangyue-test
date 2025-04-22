@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { ref, watch } from 'vue'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 </script>
 

@@ -1,5 +1,4 @@
-import type { Directive, Plugin } from 'vue'
-import type { RouteRecordRaw } from 'vue-router'
+import type { Plugin } from 'vue'
 
 export function definePlugin<Option = unknown[]>(v: Plugin<Option>) {
   return v
