@@ -1,0 +1,16 @@
+node_modules/
+.git/
+.env
+*.md
+Dockerfile
+docker-compose.yml
+**/node_modules
+**/.git
+**/.env
+**/.DS_Store
+**/dist
+**/Dockerfile
+**/docker-compose*.yml
+**/.dockerignore
+**/npm-debug.log
+**/pnpm-debug.log

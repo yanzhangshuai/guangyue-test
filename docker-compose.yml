@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  app:
+    image: yzs_guangyue-test
+    build:
+      context: ./
+      dockerfile: ./deploy/Dockerfile
+      args:
+        ALLOWED_PM: pnpm
+        REGISTRY_URL: https://registry.npmmirror.com
+    container_name: yzs_guangyue-test
+    ports:
+      - "3416:80"
+    restart: always
+    network_mode: bridge

@@ -1,0 +1,94 @@
+http {
+  include       /etc/nginx/mime.types;
+  default_type  application/octet-stream;
+  
+  sendfile on;
+  keepalive_timeout 65;
+  charset utf-8;
+  
+  map $http_x_env_type $api_server_name {
+      default        ${API_SERVER_NAME};
+      "development"  "http://dev-api:8080";
+      "testing"      "http://test-api:8080";
+      "staging"      "http://staging-api:8080";
+      "production"   "http://prod-api:8000";
+  }
+
+  map $http_x_env_type $file_server_name {
+      default        ${FILE_SERVER_NAME};
+      "development"  "http://dev-file:8080";
+      "testing"      "http://test-file:8080";
+      "staging"      "http://staging-file:8080";
+      "production"   "http://prod-file:8000";
+  }
+
+  # 引入定义变量指令的文件
+  server {
+    listen 80;
+
+    gzip on;
+    gzip_min_length 1k;
+    gzip_buffers 4 16k;
+    gzip_comp_level 6;
+    gzip_types text/plain application/javascript text/css application/xml;
+    gzip_vary on;
+    gzip_static on;
+    gzip_proxied expired no-cache no-store private auth;
+
+    location / {
+       root /usr/share/nginx/html;
+      index index.html index.htm;
+
+      try_files $uri $uri/ /index.html;
+
+      location ~* \.js$ {
+          add_header Content-Type application/javascript;
+          # 可选：缓存设置
+          expires 1y;
+          add_header Cache-Control "public, immutable";
+      }
+    }
+
+    location ~* ^/api/(?<url>(.*)) {
+      proxy_set_header X-Env-Type $http_x_env_type;
+
+      proxy_set_header Host $host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_redirect off;
+      proxy_connect_timeout 60s;
+      proxy_read_timeout 600s;
+      proxy_send_timeout 600s;
+
+      # 启用 DNS 缓存（如果你的 API_SERVER_NAME 是域名）
+      resolver 8.8.8.8 valid=30s;
+      
+
+      proxy_pass $api_server_name/$url$is_args$args;
+    }
+
+    location ~* ^/upload/(?<url>(.*)) {
+
+      client_max_body_size 3000M;
+      proxy_request_buffering off;
+      proxy_set_header Host $proxy_host;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_redirect off;
+  
+      proxy_connect_timeout 300s;
+      proxy_read_timeout 300s;
+      proxy_send_timeout 300s;
+
+      # 启用 DNS 缓存（如果你的 API_SERVER_NAME 是域名）
+      resolver 8.8.8.8 valid=30s;
+
+      proxy_pass $file_server_name/$url$is_args$args;
+    }
+  }
+
+  # server {
+  #   listen 80;
+  #   return 307 https://$host$request_uri;
+  # }
+}
