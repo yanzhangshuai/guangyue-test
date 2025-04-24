@@ -7,6 +7,12 @@
 - **节点合并**：拖拽节点到目标节点上方松开，将拖拽节点所有子节点合并目标节点，并删除拖拽节点
 - **节点移动**：拖拽节点到目标节点上/下方松开，节点将移动位置
 - **层级限制**：只能在同一层级节点之间拖拽
+
+## 演示
+<div style="width: 50%; margin: 20px auto; text-align: center">
+  <img src="./tree-drag.gif" alt="树形拖拽演示" style="max-width: 100%; border: 1px solid #eee;">
+</div>
+
 ## 安装与使用
 1. node 版本要求：`v22.x.x` 以上
 2. 安装依赖：`npm install`
