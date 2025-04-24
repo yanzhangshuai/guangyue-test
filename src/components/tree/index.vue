@@ -9,7 +9,7 @@ import { h, ref, watchEffect } from 'vue'
 import type { TreeDataNode } from './types'
 
 import { useDragTree } from './useDragTree'
-import { convertToATreeData  } from './util'
+import { convertToATreeData  } from './utils'
 
 const props = defineProps<{
   nodes: TreeNodeDto[]
@@ -52,8 +52,8 @@ const onDragEnter = (info: AntTreeNodeDragEnterEvent) => {
     const title = getHint(info)
     set(hint, {
       title,
-      x: 10, // info.event.clientX,
-      y: 10, // info.event.clientY,
+      x: info.event.clientX + 10,
+      y: info.event.clientY + 10,
     })
   })
 }
@@ -67,11 +67,11 @@ const onDragend = () => {
   dragState.srcNode     = null
   dragState.targetNode  = null
 
-  // hint.value = {
-  //   title: '',
-  //   x    : 0,
-  //   y    : 0,
-  // }
+  hint.value = {
+    title: '',
+    x    : 0,
+    y    : 0,
+  }
 }
 
 const onDrop = (info: AntTreeNodeDropEvent) => {
@@ -97,11 +97,27 @@ const onDrop = (info: AntTreeNodeDropEvent) => {
     },
   })
 }
+
+defineExpose({
+  treeData,
+  dragState,
+  canDrop,
+  isMoveOperation,
+  getHint,
+  handleMove,
+  handleMerge,
+  onDragStart,
+  onDragEnter,
+  onDragLeave,
+  onDragend,
+  onDrop,
+  hint,
+})
 </script>
 
 <template>
   <Teleport to="#app">
-    <div class="hint" :style="{ left: `${hint.x}px`, top: `${hint.y}px` }">
+    <div v-show="hint.title" class="hint" :style="{ left: `${hint.x}px`, top: `${hint.y}px` }">
       {{ hint.title }}
     </div>
   </Teleport>

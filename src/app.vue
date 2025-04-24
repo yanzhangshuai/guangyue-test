@@ -2,7 +2,7 @@
 </script>
 
 <template>
-  <SConfigProvider>
+  <ConfigProvider>
     <RouterView />
-  </SConfigProvider>
+  </ConfigProvider>
 </template>

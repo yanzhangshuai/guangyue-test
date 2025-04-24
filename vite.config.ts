@@ -10,7 +10,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 import Components from 'unplugin-vue-components/vite'
 import { AntDesignVueResolver } from 'unplugin-vue-components/resolvers'
 
-export default defineConfig((config) => {
+export default defineConfig(() => {
   return {
     plugins: [
       UnoCSS(),
@@ -37,10 +37,15 @@ export default defineConfig((config) => {
       environment: 'jsdom',
       include    : ['**/*.{test,spec}.ts'],
       coverage   : {
-        reporter        : ['html'],
-        all             : true,
-        reportsDirectory: 'report/test',
+        extensions: ['.vue'],
+        reporter  : ['text', 'json', 'html'],
       },
+    },
+    inspectBrk     : true,
+    fileParallelism: false,
+    browser        : {
+      provider : 'playwright',
+      instances: [{ browser: 'chromium' }],
     },
 
   }

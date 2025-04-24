@@ -7,7 +7,7 @@ import { UniversalTreeCache } from '@/utils/cache-tree'
 
 import type { DragState, TreeDataNode } from './types'
 
-import { updateNodeRelations } from './util'
+import { updateNodeRelations } from './utils'
 
 export function useDragTree(treeData: Ref<TreeDataNode[]>) {
   const dragState = reactive<DragState>({
@@ -73,9 +73,10 @@ export function useDragTree(treeData: Ref<TreeDataNode[]>) {
 
   // 更新hint 信息
   const getHint = (info: AntTreeNodeDragEnterEvent) => {
-    const { node } = info
+    // TODO: 目前没有处理hint
+    return ''
 
-    console.log('info', info)
+    const { node } = info
 
     // if (isMoveOperation(info)) {
 
@@ -111,13 +112,13 @@ export function useDragTree(treeData: Ref<TreeDataNode[]>) {
         : srcIndex > dropPosition
           ? dropPosition     // 上移
           : dropPosition - 1 // 下移
-      insertAt = Math.max(0, Math.min(insertAt, list.length))
+      insertAt = Math.max(0, insertAt)
+
       // 插入节点
       list.splice(insertAt, 0, src)
 
       return list
     }
-
     // 根节点处理
     if (!src.parentKey) {
       set(treeData, reorder(tree))

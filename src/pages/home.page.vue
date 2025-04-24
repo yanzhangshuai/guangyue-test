@@ -1,8 +1,7 @@
 <script lang="ts" setup>
 import { useAsync } from '@/hooks/useAsync'
 import { useTreeService } from '@/service/tree'
-
-import CTree from './tree/index.vue'
+import CTree from '@/components/tree/index.vue'
 
 const treeService = useTreeService()
 

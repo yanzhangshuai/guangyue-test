@@ -17,6 +17,10 @@ type Options<T> = Partial<{
  * @param fn async function
  * @param options options
  * @returns { data, error, isLoading, execute }
+ * data: 返回的数据
+ * error: 错误信息
+ * isLoading: 是否正在加载
+ * execute: 执行函数
  */
 export function useAsync<T>(fn: AsyncFn<T>, options?: Options<T>) {
   const data      = ref<T>()

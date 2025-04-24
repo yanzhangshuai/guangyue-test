@@ -14,7 +14,9 @@ export class UniversalTreeCache<T extends TreeNode> {
   /**
    * 预缓存完整树结构
    * @param tree 目标树
-   * @param overwrite 是否覆盖已有缓存（默认false）
+   * @param options 缓存选项
+   * @param options.overwrite 是否覆盖已有缓存
+   * @param options.clear 是否清空已有缓存
    */
   precacheTree(tree: T[], options: { overwrite?: boolean, clear?: boolean } = {}) {
     if (options.clear)
@@ -37,27 +39,28 @@ export class UniversalTreeCache<T extends TreeNode> {
   }
 
   // 查找节点（带缓存）
-  find(targetId: string, tree?: T[]): T | null {
-    if (this.cache.has(targetId)) {
-      return this.cache.get(targetId)!
+  find(target: string, tree?: T[]): T | null {
+    if (this.cache.has(target)) {
+      return this.cache.get(target)!
     }
 
     if (!tree)
       return null
 
-    const found = this.bfsFind(tree, targetId) // 使用广度优先搜索
+    const found = this.bfsFind(tree, target) // 使用广度优先搜索
+
     if (found)
-      this.cache.set(targetId, found)
+      this.cache.set(target, found)
     return found
   }
 
   // 广度优先搜索（避免递归栈溢出）
-  private bfsFind(tree: T[], targetId: string): T | null {
+  private bfsFind(tree: T[], target: string): T | null {
     const queue = [...tree]
 
     while (queue.length > 0) {
       const node = queue.shift()!
-      if (node[this.idKey] === targetId)
+      if (node[this.idKey] === target)
         return node
       if (node.children)
         queue.push(...node.children as T[])
