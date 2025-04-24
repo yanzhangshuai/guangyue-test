@@ -4,12 +4,12 @@ import type { AntTreeNodeDragEnterEvent, AntTreeNodeDropEvent, AntTreeNodeMouseE
 
 import { set } from '@vueuse/core'
 import { Modal } from 'ant-design-vue'
-import { h, ref, watchEffect } from 'vue'
+import { h, onUnmounted, ref, unref, watchEffect } from 'vue'
 
 import type { TreeDataNode } from './types'
 
 import { useDragTree } from './useDragTree'
-import { convertToATreeData  } from './utils'
+import { convertToATreeData } from './utils'
 
 const props = defineProps<{
   nodes: TreeNodeDto[]
@@ -22,34 +22,43 @@ watchEffect(() => {
 
 const hint = ref({
   title: '',
-  x    : 10,
-  y    : 10,
+  x    : 0,
+  y    : 0,
 })
 
-const {
-  dragState,
-  canDrop,
-  isMoveOperation,
-  getHint,
-  handleMove,
-  handleMerge,
-} = useDragTree(treeData)
+const { dragState, setAction, drop } = useDragTree(treeData)
 
 const onDragStart = (e: AntTreeNodeMouseEvent) => {
-  dragState.srcNode = e.node.dataRef as TreeDataNode
+  dragState.src = e.node.dataRef?.key?.toString()
 }
 
-const onDragEnter = (info: AntTreeNodeDragEnterEvent) => {
-  if (!canDrop(info.node)) {
+const onDragOver = (info: AntTreeNodeDragEnterEvent) => {
+  const targetNode = info.node.dataRef
+  if (!targetNode)
     return
-  }
 
-  dragState.targetNode = info.node.dataRef as TreeDataNode
+  dragState.target = targetNode.key?.toString()
 
-  // 使用requestAnimationFrame，避免频繁渲染
+  // 避免过度渲染
   requestAnimationFrame(() => {
-    // 检查是否可以拖拽到该节点
-    const title = getHint(info)
+    unref(hint).title = ''
+
+    const action = setAction(info)
+
+    let title = ''
+    if (action === 1) {
+      // merge
+      title = `将与【${targetNode?.name}】节点合并`
+    }
+    else if (action === 2) {
+      // move up
+      title = `将放置在【${targetNode?.name}】的上方`
+    }
+    else if (action === 3) {
+      // move down
+      title = `将放置在【${targetNode?.name}】的下方`
+    }
+
     set(hint, {
       title,
       x: info.event.clientX + 10,
@@ -58,15 +67,7 @@ const onDragEnter = (info: AntTreeNodeDragEnterEvent) => {
   })
 }
 
-const onDragLeave = () => {
-  dragState.targetNode = null
-}
-
 const onDragend = () => {
-  // 清除拖拽状态
-  dragState.srcNode     = null
-  dragState.targetNode  = null
-
   hint.value = {
     title: '',
     x    : 0,
@@ -74,42 +75,44 @@ const onDragend = () => {
   }
 }
 
+onUnmounted(() => {
+  // 清除拖拽状态
+  dragState.src    = undefined
+  dragState.target = undefined
+})
+
 const onDrop = (info: AntTreeNodeDropEvent) => {
-  if (!canDrop(info.node))
-    return
+  drop(info, (action, name1, name2) => {
+    return new Promise((resolve) => {
+      if (action !== 1) {
+        // 移动不需要确认
+        return resolve(true)
+      }
 
-  if (isMoveOperation(info))
-    return handleMove(info)
+      const content = h('div', null, [
+        h('p', null, `确定将 【${name1}】 合并到 【${name2}】 吗？`),
+        h('p', null, `合并后，【${name1}】 将被删除`),
+      ])
 
-  const srcName = dragState.srcNode?.title
-  const targetName = info.node.dataRef?.title
-
-  const content = h('div', null, [
-    h('p', null, `确定将 【${srcName}】 合并到 【${targetName}】 吗？`),
-    h('p', null, `合并后，【${srcName}】 将被删除`),
-  ])
-
-  Modal.confirm({
-    title: '提示',
-    content,
-    onOk() {
-      handleMerge(info)
-    },
+      Modal.confirm({
+        title: '提示',
+        content,
+        onOk() {
+          resolve(true)
+        },
+        onCancel() {
+          resolve(false)
+        },
+      })
+    })
   })
 }
 
 defineExpose({
   treeData,
   dragState,
-  canDrop,
-  isMoveOperation,
-  getHint,
-  handleMove,
-  handleMerge,
   onDragStart,
-  onDragEnter,
-  onDragLeave,
-  onDragend,
+  onDragOver,
   onDrop,
   hint,
 })
@@ -124,14 +127,12 @@ defineExpose({
 
   <div class="tree">
     <ATree
-      class="tree-container"
       show-line
       draggable
       block-node
       :tree-data="treeData"
       @dragstart="onDragStart"
-      @dragenter="onDragEnter"
-      @dragleave="onDragLeave"
+      @dragover="onDragOver"
       @dragend="onDragend"
       @drop="onDrop"
     />
@@ -152,6 +153,7 @@ defineExpose({
   padding: 8px 12px;
   border-radius: 4px;
 }
+
 :deep(.ant-tree-treenode-selected) {
   >span {
     color: #007fff !important;

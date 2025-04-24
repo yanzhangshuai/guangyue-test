@@ -1,18 +1,19 @@
 import type { Ref } from 'vue'
-import type { AntTreeNodeDragEnterEvent, AntTreeNodeDropEvent, EventDataNode } from 'ant-design-vue/es/tree'
+import type { AntTreeNodeDragEnterEvent, AntTreeNodeDropEvent } from 'ant-design-vue/es/tree'
 
 import { set } from '@vueuse/core'
 import { reactive, unref } from 'vue'
 import { UniversalTreeCache } from '@/utils/cache-tree'
 
-import type { DragState, TreeDataNode } from './types'
+import type { ActionType, DragState, TreeDataNode } from './types'
 
 import { updateNodeRelations } from './utils'
 
 export function useDragTree(treeData: Ref<TreeDataNode[]>) {
   const dragState = reactive<DragState>({
-    srcNode   : null,
-    targetNode: null,
+    src   : '',
+    target: '',
+    action: 0,
   })
 
   const cache = new UniversalTreeCache<TreeDataNode>()
@@ -27,135 +28,179 @@ export function useDragTree(treeData: Ref<TreeDataNode[]>) {
 
   updateCache(unref(treeData))
 
-  const canDrop = (target: EventDataNode): boolean => {
-    // 是否可以拖拽节点，
-    // 判断条件：不能拖拽到自己或子节点
-    const srcNode = dragState.srcNode
+  const setAction = (info: AntTreeNodeDragEnterEvent): ActionType => {
+    // 初始化动作0,无操作
+    dragState.action = 0
+    const { src, target } = dragState
 
-    if (!srcNode || !target)
-      return false
+    // 验证条件
+    if (!src || !target || target === src || target.startsWith(src))
+      // 拖拽到自己或子节点
+      return 0
 
-    const srcKey    = srcNode.key
-    const targetKey = target.key.toString()
+    const targetNode = cache.find(target, unref(treeData))
+    if (!targetNode)
+      return 0
 
-    return !(targetKey === srcKey || targetKey.startsWith(srcKey))
-  }
+    // 检查层级是否相同
+    const srcLevel    = src?.split('-')?.length || 0
+    const targetLevel = targetNode.key?.split('-')?.length || 0
 
-  const isMoveOperation = (info: AntTreeNodeDropEvent): boolean => {
-    // 是否为移动操作
-    // 判断移动有两个条件：
-    // 1.dropToGap=true且必须是同级节点
-    // 2.node=父节点，且dropPosition=dropPos[dropPos.length - 1],表示移动到索引0的位置
-
-    const { dropToGap, node, dropPosition } = info
-    const srcNode = dragState.srcNode
-
-    if (!srcNode)
-      return false
-
-    const targetNode = node.dataRef as TreeDataNode
-
-    // 情况1: 同级节点间的移动
-    if (dropToGap && targetNode.parentKey === srcNode.parentKey) {
-      return true
+    if (srcLevel !== targetLevel) {
+      // 不同层级不允许拖拽
+      return 0
     }
 
-    // 情况2: 移动到父节点的首位置
-    // TODO: 没有处理展开时，node=父节点，拖到末尾时
-    if (srcNode.parentKey === targetNode.key) {
-      const dropPos = node?.pos?.split('-')?.map(Number) || []
-      // at 为chrome 92+的特性
-      return dropPos.at(-1) === dropPosition
+    const { event } = info
+    const targetRect = (event.target as HTMLElement).getBoundingClientRect()
+
+    const offset1 = 4
+    const offset2 = 8
+
+    const topThreshold    = targetRect.top + offset2
+    const bottomThreshold = targetRect.top + targetRect.height - offset1
+
+    if (event.y >= topThreshold && event.y <= bottomThreshold) {
+      // merge
+      dragState.action = 1
+    }
+    else if (event.y < topThreshold) {
+      // move up
+      dragState.action = 2
+    }
+    else if (event.y > bottomThreshold) {
+      // move down
+      dragState.action = 3
     }
 
-    return false
+    return dragState.action
   }
 
-  // 更新hint 信息
-  const getHint = (info: AntTreeNodeDragEnterEvent) => {
-    // TODO: 目前没有处理hint
-    return ''
+  const move = (_: AntTreeNodeDropEvent) => {
+    const { action, src, target } = dragState
 
-    const { node } = info
+    if (![2, 3].includes(action))
+      // 无操作, 直接返回
+      return
 
-    // if (isMoveOperation(info)) {
+    const srcNode     = cache.find(src, unref(treeData))
+    const targetNode  = cache.find(target, unref(treeData))
+    if (!srcNode || !targetNode)
+      return
 
-    // }
+    const tree = unref(treeData)
 
-    const src     = dragState.srcNode as TreeDataNode
-    const target  = node.dataRef as TreeDataNode
+    /**
+     * 重新排序节点
+     * @param targetNodes 目标节点列表
+     * @param srcNodes 源节点列表（可选，不同父节点时使用）
+     * @returns [排序后的目标节点列表, 排序后的源节点列表]
+     */
+    const reorder = (targetNodes: TreeDataNode[], srcNodes?: TreeDataNode[]) => {
+      // 浅拷贝，避免直接修改原数据
+      targetNodes = targetNodes.slice()
+      srcNodes    = srcNodes?.slice()
 
-    // 提示信息
-    return `拖拽 ${src.name} 到 ${target.name} 的位置`
-  }
-
-  const handleMove = (info: AntTreeNodeDropEvent) => {
-    const { node, dragNode, dropPosition } = info
-
-    const src     = dragNode.dataRef as TreeDataNode
-    const target  = node.dataRef as TreeDataNode
-
-    const tree    = unref(treeData)
-
-    const reorder = (children?: TreeDataNode[]) => {
-      const list = children?.slice() || [] // 浅拷贝
-      if (!list.length)
-        return list
-
-      // 移除原节点
-      const srcIndex = list.findIndex(item => item.key === src.key)
-      list.splice(srcIndex, 1)
+      if (srcNodes) {
+        // 不同父节点 - 从源节点列表中删除
+        const delAt = srcNodes.findIndex(item => item.key === srcNode.key)
+        delAt > -1 && srcNodes.splice(delAt, 1)
+      }
+      else {
+        // 相同父节点，从目标节点列表中删除
+        const delAt = targetNodes.findIndex(item => item.key === srcNode.key)
+        delAt > -1 && targetNodes.splice(delAt, 1)
+      }
 
       // 计算插入位置
-      let insertAt = target.parentKey !== src.parentKey
-        ? 0  // 不同父节点时插到开头
-        : srcIndex > dropPosition
-          ? dropPosition     // 上移
-          : dropPosition - 1 // 下移
-      insertAt = Math.max(0, insertAt)
+      // action 2: 上移, 3: 下移, 下移时需要加1
+      const targetIdx = targetNodes.findIndex(item => item.key === targetNode.key)
+      const insertAt  = Math.max(0, targetIdx + (action === 2 ? 0 : 1))
 
       // 插入节点
-      list.splice(insertAt, 0, src)
+      // 如果srcNodes不为空，则表示targetNodes !== srcNodes，需要更新源节点的父节点
+      const nodeToInsert = srcNodes
+        ? srcNode
+        : updateNodeRelations([srcNode!], targetNode.parentKey)[0]
 
-      return list
+      targetNodes.splice(insertAt, 0, nodeToInsert)
+
+      return [targetNodes, srcNodes]
     }
-    // 根节点处理
-    if (!src.parentKey) {
-      set(treeData, reorder(tree))
+
+    // 如果srcNodes为空，则表示targetNodes === srcNodes
+
+    // 获取目标节点的同级节点（如果目标节点是根节点则获取整个树）
+    const targetNodes = targetNode.parentKey
+      ? cache.find(targetNode.parentKey, tree)?.children || []
+      : tree
+
+    // 如果源节点和目标节点在不同父节点下，获取源节点的同级节点
+    let srcNodes: TreeDataNode[] | undefined
+
+    if (srcNode.parentKey && srcNode.parentKey !== targetNode.parentKey) {
+      srcNodes = cache.find(srcNode.parentKey, tree)?.children || []
+    }
+
+    // 重新排序节点
+    const [reorderedTargetNodes, reorderedSrcNodes] = reorder(targetNodes, srcNodes)
+
+    // 更新目标节点位置
+    if (!targetNode.parentKey) {
+      // 根节点情况, 直接更新treeData
+      set(treeData, reorderedTargetNodes)
     }
     else {
-      // 处理非根节点
-      const parent = cache.find(src.parentKey, tree)
-      if (parent) {
-        parent.children = reorder(parent.children)
+      // 非根节点情况,找到targetNode的父节点,进行更新
+      const targetParent = cache.find(targetNode.parentKey, tree)
+
+      if (targetParent) {
+        targetParent.children = reorderedTargetNodes
       }
     }
+
+    // 如果涉及不同父节点，更新源节点位置
+    if (srcNode.parentKey && srcNode.parentKey !== targetNode.parentKey && reorderedSrcNodes) {
+      const srcParent = cache.find(srcNode.parentKey, tree)
+
+      if (srcParent) {
+        srcParent.children = reorderedSrcNodes
+      }
+    }
+
+    // 更新缓存
+    updateCache(unref(treeData))
   }
 
-  const handleMerge = (info: AntTreeNodeDropEvent) => {
-    // 合并节点
-    const { node, dragNode } = info
+  const merge = (_: AntTreeNodeDropEvent) => {
+    // 合并操作
 
-    const src     = dragNode.dataRef as TreeDataNode
-    const target  = node.dataRef as TreeDataNode
+    if (dragState.action !== 1)
+      return
+
+    const { src: srcKey, target: targetKey } = dragState
 
     const tree    = unref(treeData)
+    const srcNode = cache.find(srcKey, tree)
+    if (!srcNode)
+      return
 
     // 合并到目标节点
-    const targetNode = cache.find(target.key, tree)
+    const targetNode  = cache.find(targetKey, tree)
     if (targetNode) {
+      // 更新所有合并节点的parentKey
       targetNode.children = [
         ...(targetNode.children || []),
-        ...updateNodeRelations(src.children || [], target.key),
+        ...updateNodeRelations(srcNode?.children || [], targetKey),
       ]
     }
 
     // 从原位置移除
-    const parentNodes = src.parentKey
-      ? cache.find(src.parentKey, tree)?.children || []
+    const parentNodes = srcNode.parentKey
+      ? cache.find(srcNode.parentKey, tree)?.children || []
       : tree
 
-    const index = parentNodes.findIndex(item => item.key === src.key)
+    const index = parentNodes.findIndex(item => item.key === srcKey)
     if (index > -1) {
       parentNodes.splice(index, 1)
     }
@@ -164,12 +209,46 @@ export function useDragTree(treeData: Ref<TreeDataNode[]>) {
     updateCache(unref(treeData))
   }
 
+  const drop = async (info: AntTreeNodeDropEvent, beforeDrop?: (action: ActionType, srcName: string, targetName: string) => Promise<boolean>) => {
+    beforeDrop = beforeDrop || (() => Promise.resolve(true))
+
+    if (dragState.action === 0) {
+      // 无操作
+      return
+    }
+
+    const { src: srcKey, target: targetKey } = dragState
+
+    const srcNode     = cache.find(srcKey, unref(treeData))
+    const targetNode  = cache.find(targetKey, unref(treeData))
+    if (!srcNode || !targetNode)
+      // 无效的拖拽
+      return
+
+    try {
+      const res = await beforeDrop(dragState.action, srcNode.name, targetNode.name)
+
+      if (!res) {
+        return
+      }
+
+      if (dragState.action === 1) {
+        // 合并
+        merge(info)
+      }
+      else if ([2, 3].includes(dragState.action)) {
+        // 移动
+        move(info)
+      }
+    }
+    catch (error) {
+      console.error('Error in beforeDrop:', error)
+    }
+  }
+
   return {
     dragState,
-    canDrop,
-    isMoveOperation,
-    getHint,
-    handleMove,
-    handleMerge,
+    setAction,
+    drop,
   }
 }

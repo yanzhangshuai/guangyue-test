@@ -15,9 +15,9 @@ export function convertToATreeData(nodes: TreeNodeDto[], parentKey?: string): Tr
     return {
       ...rest,
       key,
-      title   : `${node.name}`,
-      children: children ? convertToATreeData(children, key) : undefined,
       parentKey,
+      title   : node.name,
+      children: children ? convertToATreeData(children, key) : undefined,
     }
   })
 }

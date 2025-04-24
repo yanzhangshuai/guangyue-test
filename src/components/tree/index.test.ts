@@ -1,14 +1,16 @@
 import type { TreeNodeDto } from '@/service/tree/type'
 
+import { nextTick } from 'vue'
 import { Modal } from 'ant-design-vue'
 import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { TreeDataNode } from './types'
+
 import Tree from './index.vue'
+import { convertToATreeData } from './utils'
 
 describe('treeComponent', () => {
-  let appContainer: HTMLElement
-
   const mockNodes: TreeNodeDto[] = [
     {
       id      : 1,
@@ -35,6 +37,10 @@ describe('treeComponent', () => {
     },
   ]
 
+  let appContainer: HTMLElement
+
+  let treeData: TreeDataNode[] = []
+
   vi.mock('ant-design-vue', async () => {
     const actual = await vi.importActual('ant-design-vue')
     return {
@@ -45,6 +51,10 @@ describe('treeComponent', () => {
         }),
       },
     }
+  })
+
+  beforeEach(() => {
+    treeData = convertToATreeData(mockNodes)
   })
 
   beforeEach(() => {
@@ -76,13 +86,13 @@ describe('treeComponent', () => {
   })
 
   describe('组件渲染', () => {
-    it('组件渲染', async () => {
+    it('组件基本渲染', async () => {
       const wrapper = mount(Tree, {
         props: { nodes: mockNodes },
       })
 
       //  断言树节点
-      expect(wrapper.find('.tree-container').exists()).toBe(true)
+      expect(wrapper.find('.ant-tree').exists()).toBe(true)
     })
 
     it('组件响应props变化更新树数据', async () => {
@@ -99,22 +109,23 @@ describe('treeComponent', () => {
   })
 
   describe('拖拽操作', () => {
-    it('拖拽开始事件', () => {
+    it('拖拽开始事件', async () => {
       const wrapper = mount(Tree, {
         props: { nodes: mockNodes },
       })
 
-      wrapper.vm.onDragStart({
+      await wrapper.vm.onDragStart({
+
+        // @ts-expect-error children类型问题
         node: {
-          // @ts-expect-error children类型问题
           dataRef: {
-            ...mockNodes[0],
+            ...treeData[0],
           },
         },
       })
 
       // 断言srcNode
-      expect(wrapper.vm.dragState.srcNode).toEqual(mockNodes[0])
+      expect(wrapper.vm.dragState.src).toBe(treeData[0].key)
     })
 
     it('拖拽进入节点事件', async () => {
@@ -122,237 +133,140 @@ describe('treeComponent', () => {
         props: { nodes: mockNodes },
       })
 
-      // @ts-expect-error children类型问题
-      wrapper.vm.dragState.srcNode = {
-        ...mockNodes[0],
-      }
-      await wrapper.vm.onDragEnter({
+      wrapper.vm.dragState.src = treeData[0].key
+      await wrapper.vm.onDragOver({
+        // @ts-expect-error children类型问题
         node: {
-          key     : '1-1',
-          // @ts-expect-error children类型问题
-          dataRef: {
-            ...mockNodes[0].children![0],
-          },
-          pos     : '1-1',
-          dragNode: { pos: '1' },
+          dataRef: treeData[0].children![0],
         },
       })
 
-      expect(wrapper.vm.dragState.targetNode).toEqual(mockNodes[0].children![0])
+      expect(wrapper.vm.dragState.target).toBe(treeData[0].children![0].key)
       expect(wrapper.vm.hint.title).toBeDefined()
-    })
-
-    it('拖拽离开事件', async () => {
-      const wrapper = mount(Tree, {
-        props: { nodes: mockNodes },
-      })
-
-      // @ts-expect-error children类型问题
-      wrapper.vm.dragState.targetNode = {
-        ...mockNodes[0],
-      }
-      await wrapper.vm.onDragLeave()
-
-      expect(wrapper.vm.dragState.targetNode).toBeNull()
-    })
-
-    it('拖拽结束事件', () => {
-      const wrapper = mount(Tree, {
-        props: { nodes: mockNodes },
-      })
-
-      // @ts-expect-error children类型问题
-      wrapper.vm.dragState.srcNode = {
-        ...mockNodes[0],
-      }
-      // @ts-expect-error children类型问题
-      wrapper.vm.dragState.targetNode = {
-        ...mockNodes[0].children![0],
-      }
-
-      wrapper.vm.onDragend()
-
-      expect(wrapper.vm.dragState.srcNode).toBeNull()
-      expect(wrapper.vm.dragState.targetNode).toBeNull()
     })
   })
 
-  it('不可操作', () => {
+  it('不可操作', async () => {
     const wrapper = mount(Tree, {
       props: { nodes: mockNodes },
     })
 
-    // @ts-expect-error children类型问题
-    wrapper.vm.dragState.srcNode = {
-      ...mockNodes[0],
-      key: '1',
-    }
+    wrapper.vm.dragState.src = treeData[0].key
+    wrapper.vm.dragState.target = treeData[0].children![0].key
+    wrapper.vm.dragState.action = 2
 
-    // 断言canDrop 返回false
-    expect(wrapper.vm.canDrop({
-      key     : '1-11',
+    await wrapper.vm.onDrop({
       // @ts-expect-error children类型问题
-      dataRef: {
-        ...mockNodes[0].children![0],
-        key: '1-11',
+      node: {
+
       },
-    })).toBe(false)
+      // @ts-expect-error children类型问题
+      dragNode: {
+
+      },
+    })
+    expect(wrapper.vm.treeData[0].id).toBe(treeData[0].id)
   })
 
   describe('移动操作', () => {
-    it('根节点上移', () => {
+    it('根节点上移', async () => {
       const wrapper = mount(Tree, {
         props: { nodes: mockNodes },
       })
 
+      wrapper.vm.dragState.src    = treeData[1].key
+      wrapper.vm.dragState.target = treeData[0].key
+      wrapper.vm.dragState.action = 2
+
       // @ts-expect-error children类型问题
-      wrapper.vm.dragState.srcNode = {
-        ...mockNodes[0],
-      }
+      await wrapper.vm.onDrop({})
 
-      wrapper.vm.onDrop({
-        dropPosition: -1,
-        dropToGap   : true,
-        dragNode    : {
-          key    : '2',
-          // @ts-expect-error children类型问题
-          dataRef: {
-            ...mockNodes[1],
-          },
-        },
-        node: {
-          key    : '1',
-          // @ts-expect-error children类型问题
-          dataRef: {
-            ...mockNodes[0],
-          },
-        },
-      })
-
-      // 断言wrapper.vm.treeData[0]
-      expect(wrapper.vm.treeData[0].id).equals(mockNodes[1].id)
+      expect(wrapper.vm.treeData[0].id).toBe(treeData[1].id)
     })
 
-    it('根节点下移', () => {
+    it('根节点下移', async () => {
       const wrapper = mount(Tree, {
         props: { nodes: mockNodes },
       })
 
-      // @ts-expect-error children类型问题
-      wrapper.vm.dragState.srcNode = {
-        ...mockNodes[1],
-      }
+      wrapper.vm.dragState.src    = treeData[0].key
+      wrapper.vm.dragState.target = treeData[1].key
+      wrapper.vm.dragState.action = 3
 
-      wrapper.vm.onDrop({
-        dropPosition: 2,
-        dropToGap   : true,
-        dragNode    : {
-          key    : '1',
-          // @ts-expect-error children类型问题
-          dataRef: {
-            ...mockNodes[0],
-            key: '1',
-          },
-        },
-        node: {
-          key    : '2',
-          // @ts-expect-error children类型问题
-          dataRef: {
-            ...mockNodes[1],
-            key: '2',
-          },
-          pos: '0-1',
-        },
-      })
+      // @ts-expect-error children类型问题
+      await wrapper.vm.onDrop({})
 
       // 断言wrapper.vm.treeData[0]
-      expect(wrapper.vm.treeData[0].id).equals(mockNodes[1].id)
+      expect(wrapper.vm.treeData[0].id).toBe(treeData[1].id)
     })
 
-    it('非根节点下移', () => {
+    it('非根节点同夫节点上移', async () => {
       const wrapper = mount(Tree, {
         props: { nodes: mockNodes },
       })
 
+      wrapper.vm.dragState.src    = treeData[0].children![1].key
+      wrapper.vm.dragState.target = treeData[0].children![0].key
+      wrapper.vm.dragState.action = 2
+
       // @ts-expect-error children类型问题
-      wrapper.vm.dragState.srcNode = {
-        ...mockNodes[0].children![0],
-        key: '1-11',
-      }
+      await wrapper.vm.onDrop({})
 
-      wrapper.vm.onDrop({
-        dropPosition: 2,
-        dropToGap   : true,
-        dragNode    : {
-          parentKey: '1',
-          key      : '1-11',
-          // @ts-expect-error children类型问题
-          dataRef  : {
-            parentKey: '1',
-            ...mockNodes[0].children![0],
-            key      : '1-11',
-          },
-        },
-        node: {
-          parentKey: '1',
-          key      : '1-12',
-          // @ts-expect-error children类型问题
-          dataRef  : {
-            parentKey: '1',
-            ...mockNodes[0].children![1],
-            key      : '1-12',
-          },
-        },
-      })
-
-      // 断言wrapper.vm.treeData[0]
-      expect(wrapper.vm.treeData[0].children![0].id).equals(mockNodes[0].children![1].id)
+      expect(wrapper.vm.treeData[0].children![0].id).toBe(treeData[0].children![1].id)
     })
 
-    it('非根节点上移', () => {
+    it('非根节点同夫节点下移', async () => {
       const wrapper = mount(Tree, {
         props: { nodes: mockNodes },
       })
 
-      // @ts-expect-error children类型问题
-      wrapper.vm.dragState.srcNode = {
-        ...mockNodes[0].children![2],
-        parentKey: '1',
-        key      : '1-13',
-      }
+      wrapper.vm.dragState.src    = treeData[0].children![1].key
+      wrapper.vm.dragState.target = treeData[0].children![2].key
+      wrapper.vm.dragState.action = 3
 
-      wrapper.vm.onDrop({
-        dropPosition: 1,
-        dropToGap   : true,
-        dragNode    : {
-          parentKey: '1',
-          key      : '1-13',
-          // @ts-expect-error children类型问题
-          dataRef  : {
-            parentKey: '1',
-            ...mockNodes[0].children![2],
-            key      : '1-13',
-          },
-        },
-        node: {
-          parentKey: '1',
-          key      : '1-12',
-          // @ts-expect-error children类型问题
-          dataRef  : {
-            parentKey: '1',
-            ...mockNodes[0].children![1],
-            key      : '1-12',
-          },
-        },
+      // @ts-expect-error children类型问题
+      await wrapper.vm.onDrop({})
+
+      expect(wrapper.vm.treeData[0].children![2].id).toBe(treeData[0].children![1].id)
+    })
+
+    it('非同夫节点上移', async () => {
+      const wrapper = mount(Tree, {
+        props: { nodes: mockNodes },
       })
 
-      // 断言wrapper.vm.treeData[0]
-      expect(wrapper.vm.treeData[0].children![1].id).equals(mockNodes[0].children![2].id)
+      wrapper.vm.dragState.src    = treeData[0].children![1].key
+      wrapper.vm.dragState.target = treeData[1].children![1].key
+      wrapper.vm.dragState.action = 2
+
+      // @ts-expect-error children类型问题
+      await wrapper.vm.onDrop({})
+
+      expect(wrapper.vm.treeData[0].children).toHaveLength(2)
+      expect(wrapper.vm.treeData[1].children).toHaveLength(3)
+      expect(wrapper.vm.treeData[1].children![1].id).toBe(treeData[0].children![1].id)
+    })
+
+    it('非同夫节点下移', async () => {
+      const wrapper = mount(Tree, {
+        props: { nodes: mockNodes },
+      })
+
+      wrapper.vm.dragState.src    = treeData[0].children![1].key
+      wrapper.vm.dragState.target = treeData[1].children![1].key
+      wrapper.vm.dragState.action = 3
+
+      // @ts-expect-error children类型问题
+      await wrapper.vm.onDrop({})
+
+      expect(wrapper.vm.treeData[0].children).toHaveLength(2)
+      expect(wrapper.vm.treeData[1].children).toHaveLength(3)
+      expect(wrapper.vm.treeData[1].children![2].id).toBe(treeData[0].children![1].id)
     })
   })
 
   describe('合并操作', () => {
-    it('显示确认模态框', () => {
+    it('显示确认模态框', async () => {
       const wrapper = mount(Tree, {
         props : { nodes: mockNodes },
         global: {
@@ -362,89 +276,93 @@ describe('treeComponent', () => {
         },
       })
 
+      wrapper.vm.dragState.src    = treeData[0].key
+      wrapper.vm.dragState.target = treeData[1].key
+      wrapper.vm.dragState.action = 1
       // @ts-expect-error children类型问题
-      wrapper.vm.dragState.srcNode = {
-        ...mockNodes[1].children![1],
-      }
-      wrapper.vm.onDrop({
-        dropPosition: 0,
-        dragNode    : {
-          key    : '2-21',
-          pos    : '2-1-0',
-          // @ts-expect-error children类型问题
-          dataRef: mockNodes[0].children![1],
-        },
-        node: {
-          key    : '1-1',
-          // @ts-expect-error children类型问题
-          dataRef: mockNodes[0].children![0],
-        },
-      })
+      await wrapper.vm.onDrop({})
 
       expect(Modal.confirm).toHaveBeenCalled()
     })
 
-    it('合并节点', () => {
+    it('根节点合并节点', async () => {
       const wrapper = mount(Tree, {
         props: { nodes: mockNodes },
       })
 
-      // @ts-expect-error children类型问题
-      wrapper.vm.dragState.srcNode = {
-        ...mockNodes[1],
-        key: '2',
-      }
+      wrapper.vm.dragState.src    = treeData[0].key
+      wrapper.vm.dragState.target = treeData[1].key
+      wrapper.vm.dragState.action = 1
 
-      wrapper.vm.onDrop({
-        dropPosition: 0,
-        dragNode    : {
-          key    : '2',
-          // @ts-expect-error children类型问题
-          dataRef: {
-            ...mockNodes[1],
-            key: '2',
-          },
-        },
-        node: {
-          key      : '1-11',
-          parentKey: '1',
-          // @ts-expect-error children类型问题
-          dataRef  : {
-            ...mockNodes[0].children![0],
-            key: '1-11',
-          },
-        },
-      })
+      // @ts-expect-error children类型问题
+      await wrapper.vm.onDrop({})
 
       expect(wrapper.vm.treeData).toHaveLength(1)
-      expect(wrapper.vm.treeData![0].children![0].children).toHaveLength(3)
+      expect(wrapper.vm.treeData[0].id).toBe(treeData[1].id)
+      expect(wrapper.vm.treeData[0].children).toHaveLength(5)
+    })
+
+    it('非根节点同夫节点合并节点', async () => {
+      const wrapper = mount(Tree, {
+        props: { nodes: mockNodes },
+      })
+
+      wrapper.vm.dragState.src    = treeData[0].children![0].key
+      wrapper.vm.dragState.target = treeData[0].children![2].key
+      wrapper.vm.dragState.action = 1
+
+      // @ts-expect-error children类型问题
+      await wrapper.vm.onDrop({})
+
+      expect(wrapper.vm.treeData[0].children).toHaveLength(2)
+      expect(wrapper.vm.treeData[0]!.children![1].children).toHaveLength(1)
+      expect(wrapper.vm.treeData[0]!.children![1].id).toBe(treeData[0].children![2].id)
+      expect(wrapper.vm.treeData[0]!.children![1].children![0].id).toBe(treeData[0].children![0].children![0]!.id)
+    })
+
+    it('非根节点非夫节点合并节点', async () => {
+      const wrapper = mount(Tree, {
+        props: { nodes: mockNodes },
+      })
+
+      wrapper.vm.dragState.src    = treeData[0].children![0].key
+      wrapper.vm.dragState.target = treeData[1].children![1].key
+      wrapper.vm.dragState.action = 1
+
+      // @ts-expect-error children类型问题
+      await wrapper.vm.onDrop({})
+
+      expect(wrapper.vm.treeData[0].children).toHaveLength(2)
+      expect(wrapper.vm.treeData[1]!.children![1].children).toHaveLength(1)
+      expect(wrapper.vm.treeData[1]!.children![1].children![0].id).toBe(treeData[0].children![0].children![0]!.id)
     })
   })
 
-  // it('渲染拖拽提示', async () => {
-  //   const wrapper = mount(Tree, {
-  //     props : { nodes: mockNodes },
-  //     global: {
-  //       stubs: {
-  //         Teleport: {
-  //           template: '<div><slot /></div>',
-  //         },
-  //       },
-  //     },
-  //   })
+  it('渲染拖拽提示', async () => {
+    const wrapper = mount(Tree, {
+      props : { nodes: mockNodes },
+      global: {
+        stubs: {
+          Teleport: {
+            template: '<div><slot /></div>',
+          },
+        },
+      },
+    })
 
-  //   await wrapper.setData({
-  //     hint: {
-  //       title: '拖拽提示',
-  //       x    : 20,
-  //       y    : 30,
-  //     },
-  //   })
+    wrapper.vm.hint = {
+      title: '拖拽提示',
+      x    : 20,
+      y    : 30,
+    }
 
-  //   const hint = wrapper.find('.hint')
-  //   expect(hint.exists()).toBe(true)
-  //   expect(hint.text()).toBe('拖拽提示')
-  //   expect(hint.attributes('style')).toContain('left: 20px')
-  //   expect(hint.attributes('style')).toContain('top: 30px')
-  // })
+    await nextTick()
+
+    expect(wrapper.vm.hint.title).toBe('拖拽提示')
+    const hint = wrapper.find('.hint')
+    expect(hint.exists()).toBe(true)
+    expect(hint.text()).toBe('拖拽提示')
+    expect(hint.attributes('style')).toContain('left: 20px')
+    expect(hint.attributes('style')).toContain('top: 30px')
+  })
 })

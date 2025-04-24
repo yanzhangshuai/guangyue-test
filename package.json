@@ -15,7 +15,7 @@
     "serve": "vite build && vite preview",
     "lint:fix": "eslint . --fix",
     "test": "vitest --passWithNoTests",
-    "test:ui": "vitest --ui",
+    "test:ui": "vitest --ui --passWithNoTests",
     "test:coverage": "vitest run --coverage",
     "deploy": "docker-compose -f up -d"
   },

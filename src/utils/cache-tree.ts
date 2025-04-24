@@ -39,7 +39,10 @@ export class UniversalTreeCache<T extends TreeNode> {
   }
 
   // 查找节点（带缓存）
-  find(target: string, tree?: T[]): T | null {
+  find(target?: string, tree?: T[]): T | null {
+    if (!target)
+      return null
+
     if (this.cache.has(target)) {
       return this.cache.get(target)!
     }
