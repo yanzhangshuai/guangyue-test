@@ -11,8 +11,7 @@ COPY package*.json .npmrc* ./
 COPY pnpm-lock.yaml* yarn.lock* package-lock.json* ./ 
 
 # 自动检包管理器类型 配置仓库
-RUN sed -i "s/\"preinstall\": \".*\"/\"preinstall\": \"npx only-allow ${ALLOWED_PM}\"/" package.json && \
-    echo "registry=${REGISTRY_URL}" > .npmrc && \
+RUN echo "registry=${REGISTRY_URL}" > .npmrc && \
     [ -n "${NPM_AUTH}" ] && echo "//${REGISTRY_URL#*://}:_authToken=${NPM_AUTH}" >> .npmrc || true
 
 
@@ -38,7 +37,7 @@ RUN case "${ALLOWED_PM}" in \
 
 
 COPY . .
-RUN ${ALLOWED_PM} run build:gz
+RUN ${ALLOWED_PM} run build
 
 
 # 阶段2: 生产阶段
